@@ -148,8 +148,6 @@ function iterative_lasso(X,Y,CVBLOCKS,varargin)
 	USEFUL_VOXELS = any(USEFUL_VOXELS,3);
 
 	opts.alpha = 0; % ridge regression
-% 	fitObj_ridge = init_glmnet_result_struct('glmnet',[1, ENV.N_CV]);
-% 	fitObj_cv_ridge = init_glmnet_result_struct('cvglmnet',[1, ENV.N_CV]);
 
 	err_ridge = zeros(1,N_CV);
 	dp_ridge = zeros(1,N_CV);
