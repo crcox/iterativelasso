@@ -1,0 +1,16 @@
+{
+  "TargetCategory": "TrueFaces",
+	"metadata": "meta/jlp_metadata.mat",
+  "data": [
+    "jlp01.mat",
+    "jlp02.mat",
+    "jlp03.mat",
+    "jlp04.mat",
+    "jlp05.mat",
+    "jlp06.mat",
+    "jlp07.mat",
+    "jlp08.mat",
+    "jlp09.mat",
+    "jlp10.mat"
+  ]
+}

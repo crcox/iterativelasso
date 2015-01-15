@@ -8,13 +8,11 @@ function results = main()
   end
 	opts = glmnetSet();
 	opts.alpha = 1; % 1 means LASSO; 0 means Ridge
-  pathToMetadata = fullfile(PARAMS.DATA_PATH,PARAMS.metadata);
-	[Y, CVBLOCKS] = loadMetadata(pathToMetadata, PARAMS['TargetCategory']);
+	[Y, CVBLOCKS] = loadMetadata(PARAMS['metadata'], PARAMS['TargetCategory']);
 
   %% Start the loop
   for ss = 1:length(PARAMS.data)
-    pathToFuncData = fullfile(PARAMS.DATA_PATH,PARAMS.data{ss});
-		X = loadFuncData(pathToFuncData);
+		X = loadFuncData(PARAMS.data{ss});
 		CVBLOCKS = CVBLOCKS{ss};
 		Y = Y{ss};
     if MaxIter > 0
