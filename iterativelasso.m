@@ -37,26 +37,11 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 
 	% Begin Iterative Lasso
 	while iterCounter < MaxIter
-		tmp = sprintf('iter%02d',iterCounter-1);
-    iterDir = fullfile(ExpDir,tmp);
-		if ~exist(iterDir,'dir')
-			mkdir(iterDir)
-		end
 
 		% Setup a loop over holdout sets.
 		cpb.start()
 		while cc <= N_CV
 			OMIT = cc;
-			cvDir = sprintf('cv%02d', cc);
-			outdir = fullfile(iterDir,cvDir);
-			if ~exist(outdir,'dir')
-				mkdir(outdir);
-			end
-			outdir_tuning = fullfile(iterDir,cvDir,'tuning');
-			if ~exist(outdir_tuning,'dir');
-				mkdir(outdir_tuning);
-			end
-
 			text = sprintf('Progress: %d/%d\n', cc-1, N_CV);
 			cpb.setValue(cc-1);
 			cpb.setText(text);
@@ -82,8 +67,10 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 			tuneObj = cvglmnet(Xtrain_unused,Ytrain, ...
 														 'binomial',opts_cv,'class',N_CV-1,fold_id);
       tuneObj.mask = uuv;
+      tuneObj.y = Y;
+      tuneObj.testset = FINAL_HOLDOUT;
 			tuneObj = computeModelFit(tuneObj,X_unused);
-			writeResults(outdir_tuning, tuneObj, uuv);
+%			writeResults(outdir_tuning, tuneObj, uuv);
 
 			% Set that lambda in the opts structure, and fit a new model.
 			opts.lambda = tuneObj.lambda_min;
@@ -91,7 +78,7 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
       tmpObj.mask = uuv;
 			tmpObj = computeModelFit(tmpObj,X_unused);
 			fitObj(cc) = evaluateModelFit(tmpObj,Y,FINAL_HOLDOUT);
-			writeResults(outdir, fitObj(cc), uuv);
+%			writeResults(outdir, fitObj(cc), uuv);
 
 			% Indicate which voxels were used/update the set of unused voxels.
 			if cc == 1
@@ -138,6 +125,8 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 		iterCounter = iterCounter + 1;
 	end
 	N_ITER = iterCounter;
+
+  % Save a summary json file.
   Notes = fullfile(ExpDir,'summary.json');
   savejson('',struct('niter',N_ITER,'ncv',N_CV),Notes);
 
@@ -147,11 +136,6 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 
 	err_ridge = zeros(1,N_CV);
 	dp_ridge = zeros(1,N_CV);
-  finalDir = fullfile(ExpDir,'final');
-
-  if ~exist(finalDir,'dir')
-    mkdir(finalDir);
-  end
 
 	for cc = 1:N_CV
 		disp(cc)
