@@ -1,4 +1,4 @@
-function iterativelasso(X,Y,CVBLOCKS,varargin)
+function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCKS,varargin)
   defaultMaxIter = Inf;
 
   p = inputParser;
@@ -57,15 +57,7 @@ function iterativelasso(X,Y,CVBLOCKS,varargin)
 				mkdir(outdir_tuning);
 			end
 
-      if cc > 1
-        dpstr = sprintf('% 6.2f',cell2mat({fitObj.dp}));
-        nnzstr = sprintf('% 6d',cell2mat({fitObj.df}));
-      else
-        dpstr = '';
-        nnzstr = '';
-      end
-
-			text = sprintf('Progress: %d/%d\n  dp: %s\n nnz: %s\n', cc-1, N_CV, dpstr,nnzstr);
+			text = sprintf('Progress: %d/%d\n', cc-1, N_CV);
 			cpb.setValue(cc-1);
 			cpb.setText(text);
 
@@ -89,12 +81,14 @@ function iterativelasso(X,Y,CVBLOCKS,varargin)
 			Xtrain_unused = Xtrain(:,uuv);
 			tuneObj = cvglmnet(Xtrain_unused,Ytrain, ...
 														 'binomial',opts_cv,'class',N_CV-1,fold_id);
+      tuneObj.mask = uuv;
 			tuneObj = computeModelFit(tuneObj,X_unused);
 			writeResults(outdir_tuning, tuneObj, uuv);
 
 			% Set that lambda in the opts structure, and fit a new model.
 			opts.lambda = tuneObj.lambda_min;
 			tmpObj = glmnet(Xtrain_unused,Ytrain,'binomial',opts);
+      tmpObj.mask = uuv;
 			tmpObj = computeModelFit(tmpObj,X_unused);
 			fitObj(cc) = evaluateModelFit(tmpObj,Y,FINAL_HOLDOUT);
 			writeResults(outdir, fitObj(cc), uuv);
@@ -108,6 +102,11 @@ function iterativelasso(X,Y,CVBLOCKS,varargin)
 			% Save a checkpoint file
 			cc = cc + 1;
 			saveCheckpoint();
+
+			% Log models for output (preallocating these things is more work than
+			% it is worth... )
+			iterModels(iterCounter,cc) = fitObj; %#ok<AGROW>
+		  iterTune(iterCounter,cc) = tuneObj; %#ok<AGROW>
 		end
 		text = sprintf('Progress: %d/%d', cc-1, N_CV);
 		cpb.setValue(cc-1);
@@ -141,29 +140,6 @@ function iterativelasso(X,Y,CVBLOCKS,varargin)
 	N_ITER = iterCounter;
   Notes = fullfile(ExpDir,'summary.json');
   savejson('',struct('niter',N_ITER,'ncv',N_CV),Notes);
-% 	%% Write out data in a useful way.
-%
-%   N_LAMBDA = opts_cv.nlambda;
-% 	BETA = cell(1,N_CV);
-% 	[BETA{:}] = deal(zeros(N_VOX,N_ITER));
-%   perfByLambda = zeros(N_VOX*N_ITER,5);
-% 	for cc = 1:N_CV
-% 		cvDir = sprintf('cv%02d',cc);
-% 		for ii = 1:N_ITER
-%       a = sub2ind([N_LAMBDA, N_ITER, N_CV], 1, ii, cc);
-%       b = sub2ind([N_LAMBDA, N_ITER, N_CV], N_LAMBDA, ii, cc);
-% 			iterDir = sprintf('iter%02d',N_ITER-1);
-% 			dataPath = fullfile(ExpDir,iterDir,cvDir,'fitObj.mat');
-% 			dataPath_cv = fullfile(ExpDir,iterDir,cvDir,'fitObj_cv.mat');
-% 			z = ~UNUSED_VOXELS(:,cc,ii);
-% 			load(dataPath,'beta');
-% 			load(dataPath_cv,'cvm','cvsd','df','lambda');
-% 			BETA{cc}(z,ii) = beta;
-%       perfByLambda(a:b,:) = [cc,lambda,df,cvm,cvsd];
-% 		end
-% 		csvwrite(sprintf('betas_cv%02d.csv', cc), BETA{cc},'precision','%.6f');
-% 	end
-%   csvwrite('auc_by_lambda.csv', perfByLambda);
 
 	%% Fit model using all voxels from models with above chance performance (1:(ii-3)).
 	disp('Fit Final Model')
@@ -178,16 +154,6 @@ function iterativelasso(X,Y,CVBLOCKS,varargin)
   end
 
 	for cc = 1:N_CV
-    cvDir = sprintf('cv%02d', cc);
-    outdir = fullfile(finalDir,cvDir);
-		if ~exist(outdir,'dir')
-			mkdir(outdir);
-		end
-
-		outdir_tuning = fullfile(finalDir,cvDir,'tuning');
-		if ~exist(outdir_tuning,'dir')
-			mkdir(outdir_tuning);
-		end
 		disp(cc)
 
 		% Remove the holdout set
@@ -204,52 +170,21 @@ function iterativelasso(X,Y,CVBLOCKS,varargin)
 		fold_id = transpose(fold_id);
 
 		% Run cvglmnet to determine a good lambda.
-		tuneObj = cvglmnet(Xtrain(:,uv),Ytrain, ...
+		finalTune(1,cc) = cvglmnet(Xtrain(:,uv),Ytrain, ...
 														 'binomial',opts_final_cv,'class',N_CV-1,fold_id);
-    tuneObj = computeModelFit(tuneObj,X(:,uv));
-    writeResults(outdir_tuning, tuneObj, uv);
+    finalTune(1,cc).mask = uv;
+    finalTune(1,cc) = computeModelFit(finalTune(cc),X(:,uv));
+%    writeResults(outdir_tuning, finalTune(cc), uv);
 
 		% Set that lambda in the opts structure, and fit a new model.
-		opts_final.lambda = tuneObj.lambda_min;
+		opts_final.lambda = finalTune(cc).lambda_min;
     tmpObj = glmnet(Xtrain(:,uv),Ytrain,'binomial',opts_final);
+    tmpObj.mask = uv;
     tmpObj = computeModelFit(tmpObj,X(:,uv));
-    fitObj(cc) = evaluateModelFit(tmpObj,Y,FINAL_HOLDOUT);
-    writeResults(outdir, fitObj(cc), uv);
+    finalModel(1,cc) = evaluateModelFit(tmpObj,Y,FINAL_HOLDOUT);
+%    writeResults(outdir, finalModel(cc), uv);
 	end
 
-	%% Write out data in a useful way. THIS IS WRONG@!!!!
-%  N_LAMBDA = opts_final_cv.nlambda;
-%	BETA = cell(1,N_CV);
-%	[BETA{:}] = deal(zeros(N_VOX,1));
-%  perfByLambda = zeros(N_VOX*N_LAMBDA,5);
-%	for cc = 1:N_CV
-%		cvDir = sprintf('cv%02d',cc);
-%    a = sub2ind([N_LAMBDA, N_CV], 1, cc);
-%    b = sub2ind([N_LAMBDA, N_CV], N_LAMBDA, cc);
-%    dataPath = fullfile(ExpDir,finalDir,cvDir,'fitObj.mat');
-%    dataPath_cv = fullfile(ExpDir,finalDir,cvDir,'fitObj_cv.mat');
-%    z = ~UNUSED_VOXELS(:,cc,ii);
-%    load(dataPath,'beta');
-%    load(dataPath_cv,'cvm','cvsd','df','lambda');
-%    BETA{cc}(z,ii) = beta;
-%    perfByLambda(a:b,:) = [cc,lambda,df,cvm,cvsd];
-%		csvwrite(sprintf('betas_cv%02d.csv', cc), BETA{cc},'precision','%.6f');
-%	end
-%  csvwrite('auc_by_lambda.csv', perfByLambda);
-
-  %% Package results
-%	results.errU = err_ridge;
-%	results.dpU = dp_ridge;
-%	results.UNUSED_VOXELS = UNUSED_VOXELS;
-%	results.fitObj_ridge = fitObj_ridge;
-%	results.fitObj_cv_ridge = fitObj_ridge_cv;
-%	results.fitObj = fitObj(1:iterCounter,:);
-%	results.fitObj_cv = fitObj_cv(1:iterCounter,:);
-%	results.err = err(1:iterCounter,:);
-%	results.dp = dp(1:iterCounter,:);
-%	results.errU = err_ridge;
-%	results.dpU = dp_ridge;
-%	results.UNUSED_VOXELS = UNUSED_VOXELS(:,:,1:iterCounter);
 	delete('CHECKPOINT.mat');
 
 	%% Nested Functions
@@ -312,31 +247,6 @@ function iterativelasso(X,Y,CVBLOCKS,varargin)
 			betas(mask) = full(fitObj.beta);
 		end
 		writeBinMatrix(fullfile(outdir,'beta.bin'), betas);
-% 			dp = {fitObj.dp};
-% 			if ~iscol(dp);
-% 				dp = dp';
-% 			end
-% 			dpmat = cell2mat(dp);
-%
-% 			dpt = fitObj.dpt;
-% 			if ~iscol(dpt)
-% 				dpt = dpt'
-% 			end
-% 			dptmat = cell2mat(dpt);
-%
-% 			writeBinMatrix(fullfile(outdir,'dprime_test.bin'), dpmat);
-% 			writeBinMatrix(fullfile(outdir,'dprime_train.bin'), dptmat);
-% 			cvind = 1:N_CV;
-% 			[cv,lam,subj,train,omit,alpha] = ndgrid(cvind,fitObj.lambda,1:nSubjects,[1,0],OMIT,ALPHA);
-% 			dpvec = [cell2mat(cellfun(@(x) x(:), fitObj.dp,'unif',false)); ...
-% 							 cell2mat(cellfun(@(x) x(:), fitObj.dpt,'unif',false))];
-% 			dptbl = [cv(:),lam(:),subj(:),train(:),omit(:),alpha(:),dpvec];
-% 			dptbl_header = {'cv','lam','subj','test','omit'};
-% 			save(fullfile(outdir,'dprime_table.mat'),'dptbl','dptbl_header');
-% 			csvwrite(fullfile(outdir,'dprime_table.csv'),dptbl);
-% 			writeBinTable(fullfile(outdir,'dprime_table.bin'),dptbl,'compress',false);
-% 		end
-    % NB Cannot compress on CONDOR since that would require java.
 	end
 end
 
