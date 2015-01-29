@@ -23,7 +23,7 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 	CRIT_REACHED = false;
 
 	cpb = setupProgressBar(0,N_CV);
-  CheckPoint = fullfile(ExpDir,'CHECKPOINT.mat');
+  CheckPoint = fullfile('CHECKPOINT.mat');
 	if exist(CheckPoint,'file')
 		[cc,UNUSED_VOXELS,iterCounter,nsCounter,err,dp,fitObj] = loadCheckpoint();
 	else
@@ -70,12 +70,15 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
       tuneObj.y = Y;
       tuneObj.testset = FINAL_HOLDOUT;
 			tuneObj = computeModelFit(tuneObj,X_unused);
+      tuneObj = rmfield(tuneObj,'glmnet_fit');
 %			writeResults(outdir_tuning, tuneObj, uuv);
 
 			% Set that lambda in the opts structure, and fit a new model.
 			opts.lambda = tuneObj.lambda_min;
 			tmpObj = glmnet(Xtrain_unused,Ytrain,'binomial',opts);
       tmpObj.mask = uuv;
+			tmpObj.y = Y;
+			tmpObj.testset = FINAL_HOLDOUT;
 			tmpObj = computeModelFit(tmpObj,X_unused);
 			fitObj(cc) = evaluateModelFit(tmpObj,Y,FINAL_HOLDOUT);
 %			writeResults(outdir, fitObj(cc), uuv);
@@ -86,14 +89,14 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 			end
 			UNUSED_VOXELS{iterCounter+1}(uuv,cc) = fitObj(cc).beta==0;
 
+			% Log models for output (preallocating these things is more work than
+			% it is worth... )
+			iterModels(iterCounter,cc) = fitObj(cc); %#ok<AGROW>
+		  iterTune(iterCounter,cc) = tuneObj; %#ok<AGROW>
+			
 			% Save a checkpoint file
 			cc = cc + 1;
 			saveCheckpoint();
-
-			% Log models for output (preallocating these things is more work than
-			% it is worth... )
-			iterModels(iterCounter,cc) = fitObj; %#ok<AGROW>
-		  iterTune(iterCounter,cc) = tuneObj; %#ok<AGROW>
 		end
 		text = sprintf('Progress: %d/%d', cc-1, N_CV);
 		cpb.setValue(cc-1);
@@ -154,16 +157,19 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 		fold_id = transpose(fold_id);
 
 		% Run cvglmnet to determine a good lambda.
-		finalTune(1,cc) = cvglmnet(Xtrain(:,uv),Ytrain, ...
+		tmpObj = cvglmnet(Xtrain(:,uv),Ytrain, ...
 														 'binomial',opts_final_cv,'class',N_CV-1,fold_id);
-    finalTune(1,cc).mask = uv;
-    finalTune(1,cc) = computeModelFit(finalTune(cc),X(:,uv));
+    tmpObj.mask = uv;
+		finalTune(1,cc) = computeModelFit(tmpObj,X(:,uv));
+    finalTune = rmfield(finalTune,'glmnet_fit');
 %    writeResults(outdir_tuning, finalTune(cc), uv);
 
 		% Set that lambda in the opts structure, and fit a new model.
 		opts_final.lambda = finalTune(cc).lambda_min;
     tmpObj = glmnet(Xtrain(:,uv),Ytrain,'binomial',opts_final);
     tmpObj.mask = uv;
+		tmpObj.y = Y;
+		tmpObj.testset = FINAL_HOLDOUT;
     tmpObj = computeModelFit(tmpObj,X(:,uv));
     finalModel(1,cc) = evaluateModelFit(tmpObj,Y,FINAL_HOLDOUT);
 %    writeResults(outdir, finalModel(cc), uv);
@@ -173,7 +179,7 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 
 	%% Nested Functions
 	function saveCheckpoint()
-		save('CHECKPOINT.mat','cc','UNUSED_VOXELS','iterCounter','nsCounter','err','dp','fitObj');
+		save('CHECKPOINT.mat','cc','UNUSED_VOXELS','iterCounter','nsCounter','err','dp','iterModels');
 	end
 
 	function [cc, UNUSED_VOXELS, iterCounter, nsCounter, err, dp] = initializeWorkspace()
@@ -186,11 +192,11 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 		UNUSED_VOXELS = {true(N_VOX,N_CV)};
 	end
 
-	function [cc, UNUSED_VOXELS, iterCounter, nsCounter, err, dp, fitObj] = loadCheckpoint() %#ok<STOUT>
+	function [cc, UNUSED_VOXELS, iterCounter, nsCounter, err, dp, iterModels] = loadCheckpoint() %#ok<STOUT>
 	% Function will check for a checkpoint file and load its contents if it
 	% is present. If a checkpoint file is not present, variables are
 	% initiallized to appropriate starting values.
-		load('CHECKPOINT.mat','cc','UNUSED_VOXELS','iterCounter','nsCounter','err','dp','fitObj');
+		load('CHECKPOINT.mat','cc','UNUSED_VOXELS','iterCounter','nsCounter','err','dp','iterModels');
 		if cc < N_CV
 			fprintf('++Resuming from CV%02d\n',cc);
 		end

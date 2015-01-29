@@ -12,3 +12,4 @@ def mat(f):
             x.append(unpack(f,'d')[0])
         except:
             break
+    return x
