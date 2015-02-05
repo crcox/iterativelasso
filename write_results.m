@@ -49,7 +49,7 @@ function write_model(outdir,fitObj)
   writeBinMatrix(fullfile(outdir,'fittedVals.bin'), full(fitObj.Yh));
   if strcmp(fitObj.class,'cv.glmnet')
     writeBinMatrix(fullfile(outdir,'auc_tuning.bin'), full(fitObj.cvm));
-    betas(fitObj.mask,:) = full(fitObj.glmnet_fit.beta);
+    % betas(fitObj.mask,:) = full(fitObj.glmnet_fit.beta); % This data is not being tracked anymore for memory reasons.
   else
     betas(fitObj.mask) = full(fitObj.beta);
     csvwrite(fullfile(outdir,'itemscore.csv'),[fitObj.y,fitObj.testset,fitObj.Yh])

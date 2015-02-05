@@ -64,8 +64,15 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 			uuv = UNUSED_VOXELS{iterCounter}(:,cc);
 			X_unused = X(:,uuv);
 			Xtrain_unused = Xtrain(:,uuv);
-			tuneObj = cvglmnet(Xtrain_unused,Ytrain, ...
-														 'binomial',opts_cv,'class',N_CV-1,fold_id);
+			if size(Xtrain_unused,2) > 0
+				tuneObj = cvglmnet(Xtrain_unused,Ytrain, ...
+									 'binomial',opts_cv,'class',N_CV-1,fold_id);
+			else
+				cc = cc + 1;
+				saveCheckpoint();
+				continue
+			end
+
       tuneObj.mask = uuv;
       tuneObj.y = Y;
       tuneObj.testset = FINAL_HOLDOUT;
@@ -93,7 +100,7 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 			% it is worth... )
 			iterModels(iterCounter,cc) = fitObj(cc); %#ok<AGROW>
 		  iterTune(iterCounter,cc) = tuneObj; %#ok<AGROW>
-			
+
 			% Save a checkpoint file
 			cc = cc + 1;
 			saveCheckpoint();
@@ -119,7 +126,7 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 		end
 
 		% If after STOP_CRIT consecutive non-significant iterations, break.
-		if nsCounter > STOP_CRIT;
+		if nsCounter >= STOP_CRIT;
 			CRIT_REACHED = true(1);
 			break
 		end
@@ -137,43 +144,51 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 	disp('Fit Final Model')
 	USEFUL_VOXELS = selectUsefulVoxels(UNUSED_VOXELS);
 
-	err_ridge = zeros(1,N_CV);
-	dp_ridge = zeros(1,N_CV);
+  if any(USEFUL_VOXELS)
+    err_ridge = zeros(1,N_CV);
+    dp_ridge = zeros(1,N_CV);
 
-	for cc = 1:N_CV
-		disp(cc)
+    for cc = 1:N_CV
+      disp(cc)
 
-		% Remove the holdout set
-		FINAL_HOLDOUT = CVBLOCKS(:,cc);
-		CV2 = CVBLOCKS(~FINAL_HOLDOUT,(1:N_CV)~=cc);
-		Xtrain = X(~FINAL_HOLDOUT,:);
-		Ytrain = Y(~FINAL_HOLDOUT);
-    uv = USEFUL_VOXELS(:,cc);
+      % Remove the holdout set
+      FINAL_HOLDOUT = CVBLOCKS(:,cc);
+      CV2 = CVBLOCKS(~FINAL_HOLDOUT,(1:N_CV)~=cc);
+      Xtrain = X(~FINAL_HOLDOUT,:);
+      Ytrain = Y(~FINAL_HOLDOUT);
+      uv = USEFUL_VOXELS(:,cc);
 
-		% Convert CV2 to fold_id
-		fold_id = sum(bsxfun(@times,double(CV2),1:N_CV-1),2);
+      % Convert CV2 to fold_id
+      fold_id = sum(bsxfun(@times,double(CV2),1:N_CV-1),2);
 
-		% For some reason, this must be a row vector.
-		fold_id = transpose(fold_id);
+      % For some reason, this must be a row vector.
+      fold_id = transpose(fold_id);
 
-		% Run cvglmnet to determine a good lambda.
-		tmpObj = cvglmnet(Xtrain(:,uv),Ytrain, ...
-														 'binomial',opts_final_cv,'class',N_CV-1,fold_id);
-    tmpObj.mask = uv;
-		finalTune(1,cc) = computeModelFit(tmpObj,X(:,uv));
-    finalTune = rmfield(finalTune,'glmnet_fit');
-%    writeResults(outdir_tuning, finalTune(cc), uv);
+      % Run cvglmnet to determine a good lambda.
+      tmpObj = cvglmnet(Xtrain(:,uv),Ytrain, ...
+                               'binomial',opts_final_cv,'class',N_CV-1,fold_id);
+      tmpObj.mask = uv;
+      tmpObj = computeModelFit(tmpObj,X(:,uv));
+      finalTune(1,cc) = rmfield(tmpObj,'glmnet_fit');
+  %    writeResults(outdir_tuning, finalTune(cc), uv);
 
-		% Set that lambda in the opts structure, and fit a new model.
-		opts_final.lambda = finalTune(cc).lambda_min;
-    tmpObj = glmnet(Xtrain(:,uv),Ytrain,'binomial',opts_final);
-    tmpObj.mask = uv;
-		tmpObj.y = Y;
-		tmpObj.testset = FINAL_HOLDOUT;
-    tmpObj = computeModelFit(tmpObj,X(:,uv));
-    finalModel(1,cc) = evaluateModelFit(tmpObj,Y,FINAL_HOLDOUT);
-%    writeResults(outdir, finalModel(cc), uv);
-	end
+      % Set that lambda in the opts structure, and fit a new model.
+      opts_final.lambda = finalTune(cc).lambda_min;
+      tmpObj = glmnet(Xtrain(:,uv),Ytrain,'binomial',opts_final);
+      tmpObj.mask = uv;
+      tmpObj.y = Y;
+      tmpObj.testset = FINAL_HOLDOUT;
+      tmpObj = computeModelFit(tmpObj,X(:,uv));
+      finalModel(1,cc) = evaluateModelFit(tmpObj,Y,FINAL_HOLDOUT);
+  %    writeResults(outdir, finalModel(cc), uv);
+    end
+  else
+    fprintf('No significant iterations. Cannot fit final model.\n');
+    iterModels;
+    iterTune;
+    finalModel = struct();
+    finalTune = struct();
+  end
 
 	delete('CHECKPOINT.mat');
 
