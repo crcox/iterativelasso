@@ -1,21 +1,21 @@
 function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCKS,varargin)
-  defaultMaxIter = Inf;
+	defaultMaxIter = Inf;
 
-  p = inputParser;
-  addRequired(p, 'X');
-  addRequired(p, 'Y');
-  addRequired(p, 'CVBLOCKS');
-  addParameter(p, 'MaxIter', defaultMaxIter);
-  addParameter(p, 'ExpDir', '');
-  parse(p,X,Y,CVBLOCKS,varargin{:});
+	p = inputParser;
+	addRequired(p, 'X');
+	addRequired(p, 'Y');
+	addRequired(p, 'CVBLOCKS');
+	addParameter(p, 'MaxIter', defaultMaxIter);
+	addParameter(p, 'ExpDir', '');
+	parse(p,X,Y,CVBLOCKS,varargin{:});
 
-  X = p.Results.X;
-  Y = p.Results.Y;
-  CVBLOCKS = p.Results.CVBLOCKS;
-  MaxIter = p.Results.MaxIter;
-  ExpDir = p.Results.ExpDir;
+	X = p.Results.X;
+	Y = p.Results.Y;
+	CVBLOCKS = p.Results.CVBLOCKS;
+	MaxIter = p.Results.MaxIter;
+	ExpDir = p.Results.ExpDir;
 
-  N_CV = size(CVBLOCKS,2);
+	N_CV = size(CVBLOCKS,2);
 	N_VOX = size(X,2);
 
 	STOP_CRIT = 2; % Number of consecutive non-significant iterations before
@@ -23,17 +23,17 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 	CRIT_REACHED = false;
 
 	cpb = setupProgressBar(0,N_CV);
-  CheckPoint = fullfile('CHECKPOINT.mat');
+	CheckPoint = fullfile('CHECKPOINT.mat');
 	if exist(CheckPoint,'file')
 		[cc,UNUSED_VOXELS,iterCounter,nsCounter,err,dp,fitObj] = loadCheckpoint();
 	else
 		[cc,UNUSED_VOXELS,iterCounter,nsCounter,err,dp] = initializeWorkspace();
 	end
 
-  opts = glmnetSet();
-  opts_cv = glmnetSet();
-  opts_final = glmnetSet(struct('alpha',0));
-  opts_final_cv = glmnetSet(struct('alpha',0));
+	opts = glmnetSet();
+	opts_cv = glmnetSet();
+	opts_final = glmnetSet(struct('alpha',0));
+	opts_final_cv = glmnetSet(struct('alpha',0));
 
 	% Begin Iterative Lasso
 	while iterCounter < MaxIter
@@ -73,17 +73,17 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 				continue
 			end
 
-      tuneObj.mask = uuv;
-      tuneObj.y = Y;
-      tuneObj.testset = FINAL_HOLDOUT;
+			tuneObj.mask = uuv;
+			tuneObj.y = Y;
+			tuneObj.testset = FINAL_HOLDOUT;
 			tuneObj = computeModelFit(tuneObj,X_unused);
-      tuneObj = rmfield(tuneObj,'glmnet_fit');
+			tuneObj = rmfield(tuneObj,'glmnet_fit');
 %			writeResults(outdir_tuning, tuneObj, uuv);
 
 			% Set that lambda in the opts structure, and fit a new model.
 			opts.lambda = tuneObj.lambda_min;
 			tmpObj = glmnet(Xtrain_unused,Ytrain,'binomial',opts);
-      tmpObj.mask = uuv;
+			tmpObj.mask = uuv;
 			tmpObj.y = Y;
 			tmpObj.testset = FINAL_HOLDOUT;
 			tmpObj = computeModelFit(tmpObj,X_unused);
@@ -99,7 +99,7 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 			% Log models for output (preallocating these things is more work than
 			% it is worth... )
 			iterModels(iterCounter,cc) = fitObj(cc); %#ok<AGROW>
-		  iterTune(iterCounter,cc) = tuneObj; %#ok<AGROW>
+			iterTune(iterCounter,cc) = tuneObj; %#ok<AGROW>
 
 			% Save a checkpoint file
 			cc = cc + 1;
@@ -136,59 +136,59 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 	end
 	N_ITER = iterCounter;
 
-  % Save a summary json file.
-  Notes = fullfile(ExpDir,'summary.json');
-  savejson('',struct('niter',N_ITER,'ncv',N_CV),Notes);
+	% Save a summary json file.
+	Notes = fullfile(ExpDir,'summary.json');
+	savejson('',struct('niter',N_ITER,'ncv',N_CV),Notes);
 
 	%% Fit model using all voxels from models with above chance performance (1:(ii-3)).
 	disp('Fit Final Model')
 	USEFUL_VOXELS = selectUsefulVoxels(UNUSED_VOXELS);
 
-  if any(USEFUL_VOXELS)
-    err_ridge = zeros(1,N_CV);
-    dp_ridge = zeros(1,N_CV);
+	if any(USEFUL_VOXELS)
+		err_ridge = zeros(1,N_CV);
+		dp_ridge = zeros(1,N_CV);
 
-    for cc = 1:N_CV
-      disp(cc)
+		for cc = 1:N_CV
+			disp(cc)
 
-      % Remove the holdout set
-      FINAL_HOLDOUT = CVBLOCKS(:,cc);
-      CV2 = CVBLOCKS(~FINAL_HOLDOUT,(1:N_CV)~=cc);
-      Xtrain = X(~FINAL_HOLDOUT,:);
-      Ytrain = Y(~FINAL_HOLDOUT);
-      uv = USEFUL_VOXELS(:,cc);
+			% Remove the holdout set
+			FINAL_HOLDOUT = CVBLOCKS(:,cc);
+			CV2 = CVBLOCKS(~FINAL_HOLDOUT,(1:N_CV)~=cc);
+			Xtrain = X(~FINAL_HOLDOUT,:);
+			Ytrain = Y(~FINAL_HOLDOUT);
+			uv = USEFUL_VOXELS(:,cc);
 
-      % Convert CV2 to fold_id
-      fold_id = sum(bsxfun(@times,double(CV2),1:N_CV-1),2);
+			% Convert CV2 to fold_id
+			fold_id = sum(bsxfun(@times,double(CV2),1:N_CV-1),2);
 
-      % For some reason, this must be a row vector.
-      fold_id = transpose(fold_id);
+			% For some reason, this must be a row vector.
+			fold_id = transpose(fold_id);
 
-      % Run cvglmnet to determine a good lambda.
-      tmpObj = cvglmnet(Xtrain(:,uv),Ytrain, ...
+			% Run cvglmnet to determine a good lambda.
+			tmpObj = cvglmnet(Xtrain(:,uv),Ytrain, ...
                                'binomial',opts_final_cv,'class',N_CV-1,fold_id);
-      tmpObj.mask = uv;
-      tmpObj = computeModelFit(tmpObj,X(:,uv));
-      finalTune(1,cc) = rmfield(tmpObj,'glmnet_fit');
-  %    writeResults(outdir_tuning, finalTune(cc), uv);
+			tmpObj.mask = uv;
+			tmpObj = computeModelFit(tmpObj,X(:,uv));
+			finalTune(1,cc) = rmfield(tmpObj,'glmnet_fit');
+	%		writeResults(outdir_tuning, finalTune(cc), uv);
 
-      % Set that lambda in the opts structure, and fit a new model.
-      opts_final.lambda = finalTune(cc).lambda_min;
-      tmpObj = glmnet(Xtrain(:,uv),Ytrain,'binomial',opts_final);
-      tmpObj.mask = uv;
-      tmpObj.y = Y;
-      tmpObj.testset = FINAL_HOLDOUT;
-      tmpObj = computeModelFit(tmpObj,X(:,uv));
-      finalModel(1,cc) = evaluateModelFit(tmpObj,Y,FINAL_HOLDOUT);
-  %    writeResults(outdir, finalModel(cc), uv);
-    end
-  else
-    fprintf('No significant iterations. Cannot fit final model.\n');
-    iterModels;
-    iterTune;
-    finalModel = struct();
-    finalTune = struct();
-  end
+			% Set that lambda in the opts structure, and fit a new model.
+			opts_final.lambda = finalTune(cc).lambda_min;
+			tmpObj = glmnet(Xtrain(:,uv),Ytrain,'binomial',opts_final);
+			tmpObj.mask = uv;
+			tmpObj.y = Y;
+			tmpObj.testset = FINAL_HOLDOUT;
+			tmpObj = computeModelFit(tmpObj,X(:,uv));
+			finalModel(1,cc) = evaluateModelFit(tmpObj,Y,FINAL_HOLDOUT);
+	%		writeResults(outdir, finalModel(cc), uv);
+		end
+	else
+		fprintf('No significant iterations. Cannot fit final model.\n');
+		iterModels;
+		iterTune;
+		finalModel = struct();
+		finalTune = struct();
+	end
 
 	delete('CHECKPOINT.mat');
 
@@ -217,14 +217,14 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 		end
 	end
 
-  function fitObj = computeModelFit(fitObj,X)
-    n = size(X,1);
-    if strcmp(fitObj.class,'cv.glmnet')
-      B = [fitObj.glmnet_fit.a0;fitObj.glmnet_fit.beta];
-    else
-      B = [fitObj.a0;fitObj.beta];
-    end
-    fitObj.Yh = [ones(n,1),X] * B;
+	function fitObj = computeModelFit(fitObj,X)
+		n = size(X,1);
+		if strcmp(fitObj.class,'cv.glmnet')
+			B = [fitObj.glmnet_fit.a0;fitObj.glmnet_fit.beta];
+		else
+			B = [fitObj.a0;fitObj.beta];
+		end
+		fitObj.Yh = [ones(n,1),X] * B;
 	end
 
 	function fitObj = evaluateModelFit(fitObj,y,cv)
@@ -257,32 +257,32 @@ end
 
 function writeBinMatrix(filename,X)
 % Column-major order.
-  f = fopen(fullfile(filename),'w');
-  fwrite(f,size(X), 'int', 'ieee-le'); % 4 byte
-  fwrite(f, X, 'double', 'ieee-le');   % 8 byte
-  fclose(f);
+	f = fopen(fullfile(filename),'w');
+	fwrite(f,size(X), 'int', 'ieee-le'); % 4 byte
+	fwrite(f, X, 'double', 'ieee-le');   % 8 byte
+	fclose(f);
 end
 
 function writeBinTable(filename,tbl,varargin)
 % Column-major order
 % Cannot compress on CONDOR since that would require java.
-  p = inputParser;
-  p.addOptional('compress',false,@islogical);
-  parse(p, varargin{:});
-  f = fopen(filename,'w');
-  fwrite(f,size(tbl), 'uint', 'ieee-le');    % 4 byte, dims
-  fwrite(f, tbl(:,1), 'uint8', 'ieee-le');   % 1 byte, cv
-  fwrite(f, tbl(:,2), 'float', 'ieee-le');   % 4 byte, lam
-  fwrite(f, tbl(:,3), 'uint8', 'ieee-le');   % 1 byte, subj
-  fwrite(f, tbl(:,4), 'uint8', 'ieee-le');   % 1 byte, isTest
-  fwrite(f, tbl(:,5), 'uint8', 'ieee-le');   % 1 byte, omit
-  fwrite(f, tbl(:,6), 'float', 'ieee-le');   % 4 byte, alpha
-  fwrite(f, tbl(:,7), 'float', 'ieee-le');   % 4 byte, dprime
-  fclose(f);
-  if p.Results.compress == true
-    gzip(filename);
-    delete(filename)
-  end
+	p = inputParser;
+	p.addOptional('compress',false,@islogical);
+	parse(p, varargin{:});
+	f = fopen(filename,'w');
+	fwrite(f,size(tbl), 'uint', 'ieee-le');	  % 4 byte, dims
+	fwrite(f, tbl(:,1), 'uint8', 'ieee-le');   % 1 byte, cv
+	fwrite(f, tbl(:,2), 'float', 'ieee-le');   % 4 byte, lam
+	fwrite(f, tbl(:,3), 'uint8', 'ieee-le');   % 1 byte, subj
+	fwrite(f, tbl(:,4), 'uint8', 'ieee-le');   % 1 byte, isTest
+	fwrite(f, tbl(:,5), 'uint8', 'ieee-le');   % 1 byte, omit
+	fwrite(f, tbl(:,6), 'float', 'ieee-le');   % 4 byte, alpha
+	fwrite(f, tbl(:,7), 'float', 'ieee-le');   % 4 byte, dprime
+	fclose(f);
+	if p.Results.compress == true
+		gzip(filename);
+		delete(filename)
+	end
 end
 
 %% Private Functions
