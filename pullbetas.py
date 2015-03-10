@@ -10,9 +10,8 @@ with open('summary.json','rb') as f:
 for iter_ in range(jdat['niter']):
     iterdir = 'iter{i:02d}'.format(i=iter_)
 
+    beta = []
     for cv in range(jdat['ncv']):
-        beta = []
-
         cvdir = 'cv{i:02d}'.format(i=cv+1)
         beta_path = os.path.join('iterations',iterdir,cvdir,'beta.bin')
 
