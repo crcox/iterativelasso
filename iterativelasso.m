@@ -74,7 +74,7 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 			end
 
 			tuneObj.mask = uuv;
-			tuneObj.y = Y;
+			tuneObj.y = Y>0;
 			tuneObj.testset = FINAL_HOLDOUT;
 			tuneObj = computeModelFit(tuneObj,X_unused);
 			tuneObj = rmfield(tuneObj,'glmnet_fit');
@@ -84,7 +84,7 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 			opts.lambda = tuneObj.lambda_min;
 			tmpObj = glmnet(Xtrain_unused,Ytrain,'binomial',opts);
 			tmpObj.mask = uuv;
-			tmpObj.y = Y;
+			tmpObj.y = Y>0;
 			tmpObj.testset = FINAL_HOLDOUT;
 			tmpObj = computeModelFit(tmpObj,X_unused);
 			fitObj(cc) = evaluateModelFit(tmpObj,Y,FINAL_HOLDOUT);
@@ -176,7 +176,7 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 			opts_final.lambda = finalTune(cc).lambda_min;
 			tmpObj = glmnet(Xtrain(:,uv),Ytrain,'binomial',opts_final);
 			tmpObj.mask = uv;
-			tmpObj.y = Y;
+			tmpObj.y = Y>0;
 			tmpObj.testset = FINAL_HOLDOUT;
 			tmpObj = computeModelFit(tmpObj,X(:,uv));
 			finalModel(1,cc) = evaluateModelFit(tmpObj,Y,FINAL_HOLDOUT);
