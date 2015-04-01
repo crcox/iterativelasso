@@ -1,6 +1,6 @@
 Iterative Lasso
 ===============
-Iterative Lasso is a procedure that implements Lasso[^1] in a loop. Each
+Iterative Lasso is a procedure that implements Lasso[1] in a loop. Each
 time Lasso is run, some set of features are identified as informative
 and are assigned non-zero weights. Exactly as with a standard regression
 model, these weights can be multiplied with the value at each
@@ -15,10 +15,11 @@ each iteration are compiled into a single set. If one is interested in
 how well a model can perform if trained on this compilated set of
 features, one can use Ridge Regression. See our poster presented at the
 22nd meeting of the Cognitive Neurscience Society for a little more
-detail and an application[^2].
+detail and an application[2].
 
-[^1] http://statweb.stanford.edu/~tibs/lasso.html
-[^2] https://github.com/crcox/CNS2015/raw/master/IterativeLassoPoster.pdf
+[1] http://statweb.stanford.edu/~tibs/lasso.html
+
+[2] https://github.com/crcox/CNS2015/raw/master/IterativeLassoPoster.pdf
 
 Why use Iterative Lasso?
 ------------------------
@@ -59,7 +60,7 @@ Matlab path. You will need to do the same for several dependencies.
 
 Dependencies
 ------------
-- glmnet (http://web.stanford.edu/~hastie/glmnet\_matlab/)
+- glmnet (http://web.stanford.edu/~hastie/glmnet_matlab/)
 - (optional) condorutils (https://github.com/crcox/condortools)
 
 Usage
