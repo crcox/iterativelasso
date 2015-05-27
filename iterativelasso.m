@@ -22,7 +22,14 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 	               % breaking the loop.
 	CRIT_REACHED = false;
 
-	cpb = setupProgressBar(0,N_CV);
+    USE_CPB = false;
+    try
+        cpb = setupProgressBar(0,N_CV);
+        USE_CPB = true;
+    catch err
+        warning('ConsoleProgressBar not found.');
+    end
+    
 	CheckPoint = fullfile('CHECKPOINT.mat');
 	if exist(CheckPoint,'file')
 		[cc,UNUSED_VOXELS,iterCounter,nsCounter,err,dp,fitObj] = loadCheckpoint();
@@ -39,12 +46,18 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 	while iterCounter < MaxIter
 
 		% Setup a loop over holdout sets.
-		cpb.start()
+        if USE_CPB
+            cpb.start()
+        end
 		while cc <= N_CV
 			OMIT = cc;
-			text = sprintf('Progress: %d/%d\n', cc-1, N_CV);
-			cpb.setValue(cc-1);
-			cpb.setText(text);
+			text = sprintf('Progress: %3d/%3d\n', cc-1, N_CV);
+            if USE_CPB
+                cpb.setValue(cc-1);
+                cpb.setText(text);
+            else
+                fprintf('%s\n', text);
+            end
 
 			% Pick a final holdout set
 			FINAL_HOLDOUT = CVBLOCKS(:,OMIT);
@@ -66,7 +79,7 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 			Xtrain_unused = Xtrain(:,uuv);
 			if size(Xtrain_unused,2) > 0
 				tuneObj = cvglmnet(Xtrain_unused,Ytrain, ...
-									 'binomial',opts_cv,'class',N_CV-1,fold_id);
+									 'binomial',opts_cv,'auc',N_CV-1,fold_id);
 			else
 				cc = cc + 1;
 				saveCheckpoint();
@@ -106,9 +119,11 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 			saveCheckpoint();
 		end
 		text = sprintf('Progress: %d/%d', cc-1, N_CV);
-		cpb.setValue(cc-1);
-		cpb.setText(text);
-		cpb.stop();
+        if USE_CPB            
+            cpb.setValue(cc-1);
+            cpb.setText(text);
+            cpb.stop();
+        end
 
 		%% Test if dprime is significantly greater than zero.
 		dp = cell2mat({fitObj.dp});
@@ -166,7 +181,7 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 
 			% Run cvglmnet to determine a good lambda.
 			tmpObj = cvglmnet(Xtrain(:,uv),Ytrain, ...
-                               'binomial',opts_final_cv,'class',N_CV-1,fold_id);
+                               'binomial',opts_final_cv,'auc',N_CV-1,fold_id);
 			tmpObj.mask = uv;
 			tmpObj = computeModelFit(tmpObj,X(:,uv));
 			finalTune(1,cc) = rmfield(tmpObj,'glmnet_fit');
