@@ -22,14 +22,14 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 	               % breaking the loop.
 	CRIT_REACHED = false;
 
-    USE_CPB = false;
-    try
-        cpb = setupProgressBar(0,N_CV);
-        USE_CPB = true;
-    catch err
-        warning('ConsoleProgressBar not found.');
-    end
-    
+  USE_CPB = false;
+  try
+    cpb = setupProgressBar(0,N_CV);
+    USE_CPB = true;
+  catch err
+    warning('ConsoleProgressBar not found.');
+  end
+
 	CheckPoint = fullfile('CHECKPOINT.mat');
 	if exist(CheckPoint,'file')
 		[cc,UNUSED_VOXELS,iterCounter,nsCounter,err,dp,fitObj] = loadCheckpoint();
@@ -46,18 +46,18 @@ function [finalModel,iterModels,finalTune,iterTune] = iterativelasso(X,Y,CVBLOCK
 	while iterCounter < MaxIter
 
 		% Setup a loop over holdout sets.
-        if USE_CPB
-            cpb.start()
-        end
+    if USE_CPB
+        cpb.start()
+    end
 		while cc <= N_CV
 			OMIT = cc;
 			text = sprintf('Progress: %3d/%3d\n', cc-1, N_CV);
-            if USE_CPB
-                cpb.setValue(cc-1);
-                cpb.setText(text);
-            else
-                fprintf('%s\n', text);
-            end
+      if USE_CPB
+        cpb.setValue(cc-1);
+        cpb.setText(text);
+      else
+        fprintf('%s\n', text);
+      end
 
 			% Pick a final holdout set
 			FINAL_HOLDOUT = CVBLOCKS(:,OMIT);
